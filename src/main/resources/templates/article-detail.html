@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title id="articleTitle">文章详情 - OneBlog</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.8.0/build/styles/default.min.css">
+    <style>
+        .article-content {
+            line-height: 1.8;
+        }
+        .article-content img {
+            max-width: 100%;
+            height: auto;
+        }
+        .toc {
+            position: sticky;
+            top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <!-- 导航栏 -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container">
+            <a class="navbar-brand" href="/">OneBlog</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item"><a class="nav-link" href="/">首页</a></li>
+                    <li class="nav-item"><a class="nav-link" href="/archive">归档</a></li>
+                    <li class="nav-item"><a class="nav-link" href="/about">关于</a></li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <!-- 主要内容 -->
+    <div class="container mt-4">
+        <div class="row">
+            <!-- 文章内容 -->
+            <div class="col-lg-9">
+                <article>
+                    <h1 id="articleTitleDisplay"></h1>
+                    <div class="text-muted mb-3">
+                        <span id="articleMeta"></span>
+                    </div>
+                    <div id="articleContent" class="article-content"></div>
+                    
+                    <!-- 操作按钮 -->
+                    <div class="mt-4 d-flex justify-content-between">
+                        <button class="btn btn-outline-primary" id="likeBtn">
+                            <i class="bi bi-heart"></i> <span id="likeCount">0</span>
+                        </button>
+                        <button class="btn btn-outline-secondary" id="shareBtn">
+                            <i class="bi bi-share"></i> 分享
+                        </button>
+                    </div>
+
+                    <!-- 推荐文章 -->
+                    <div class="mt-5">
+                        <h4>推荐文章</h4>
+                        <div id="recommendArticles" class="row">
+                            <!-- 动态加载 -->
+                        </div>
+                    </div>
+
+                    <!-- 评论区域 -->
+                    <div class="mt-5">
+                        <h4>评论</h4>
+                        <div id="commentForm" class="mb-4">
+                            <div class="mb-3">
+                                <input type="text" class="form-control" id="commentNickname" placeholder="昵称" required>
+                            </div>
+                            <div class="mb-3">
+                                <input type="email" class="form-control" id="commentEmail" placeholder="邮箱（可选）">
+                            </div>
+                            <div class="mb-3">
+                                <textarea class="form-control" id="commentContent" rows="3" placeholder="写下你的评论..." required></textarea>
+                            </div>
+                            <button class="btn btn-primary" id="submitComment">提交评论</button>
+                        </div>
+                        <div id="commentList">
+                            <!-- 动态加载 -->
+                        </div>
+                    </div>
+                </article>
+            </div>
+
+            <!-- 侧边栏 -->
+            <div class="col-lg-3">
+                <div class="toc">
+                    <div class="card">
+                        <div class="card-header">目录</div>
+                        <div class="card-body" id="tocContent">
+                            <!-- 动态生成 -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 页脚 -->
+    <footer class="bg-dark text-white text-center py-3 mt-5">
+        <div class="container">
+            <p class="mb-0">© 2024 OneBlog</p>
+        </div>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.8.0/build/highlight.min.js"></script>
+    <script>
+        const articleId = window.location.pathname.split('/').pop();
+        let article = null;
+
+        // 加载文章详情
+        async function loadArticle() {
+            try {
+                const response = await fetch(`/api/article/${articleId}`);
+                const result = await response.json();
+                if (result.code === 200) {
+                    article = result.data;
+                    renderArticle(article);
+                    loadRecommendArticles();
+                    loadComments();
+                }
+            } catch (error) {
+                console.error('加载文章失败:', error);
+            }
+        }
+
+        // 渲染文章
+        function renderArticle(article) {
+            document.getElementById('articleTitle').textContent = article.title + ' - OneBlog';
+            document.getElementById('articleTitleDisplay').textContent = article.title;
+            document.getElementById('articleMeta').innerHTML = `
+                <i class="bi bi-calendar"></i> ${formatDate(article.publishTime)}
+                <i class="bi bi-eye ms-2"></i> ${article.views || 0}
+                <i class="bi bi-chat ms-2"></i> ${article.comments || 0}
+            `;
+            document.getElementById('articleContent').innerHTML = article.htmlContent || article.content;
+            document.getElementById('likeCount').textContent = article.likes || 0;
+            
+            // 代码高亮
+            document.querySelectorAll('pre code').forEach((block) => {
+                hljs.highlightElement(block);
+            });
+            
+            // 生成目录
+            generateTOC();
+        }
+
+        // 生成目录
+        function generateTOC() {
+            const headings = document.querySelectorAll('.article-content h1, .article-content h2, .article-content h3');
+            const tocContent = document.getElementById('tocContent');
+            if (headings.length === 0) {
+                tocContent.innerHTML = '<p class="text-muted">暂无目录</p>';
+                return;
+            }
+            
+            let tocHTML = '<ul class="list-unstyled">';
+            headings.forEach((heading, index) => {
+                const id = `heading-${index}`;
+                heading.id = id;
+                const level = parseInt(heading.tagName.charAt(1));
+                tocHTML += `<li style="margin-left: ${(level - 1) * 20}px;">
+                    <a href="#${id}" class="text-decoration-none">${heading.textContent}</a>
+                </li>`;
+            });
+            tocHTML += '</ul>';
+            tocContent.innerHTML = tocHTML;
+        }
+
+        // 加载推荐文章
+        async function loadRecommendArticles() {
+            try {
+                const response = await fetch(`/api/articles/recommend/${articleId}?limit=5`);
+                const result = await response.json();
+                if (result.code === 200) {
+                    renderRecommendArticles(result.data);
+                }
+            } catch (error) {
+                console.error('加载推荐文章失败:', error);
+            }
+        }
+
+        // 渲染推荐文章
+        function renderRecommendArticles(articles) {
+            const container = document.getElementById('recommendArticles');
+            container.innerHTML = articles.map(article => `
+                <div class="col-md-6 mb-3">
+                    <div class="card">
+                        <div class="card-body">
+                            <h6 class="card-title">
+                                <a href="/article/${article.id}">${article.title}</a>
+                            </h6>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // 加载评论
+        async function loadComments() {
+            try {
+                const response = await fetch(`/api/comments/article/${articleId}`);
+                const result = await response.json();
+                if (result.code === 200) {
+                    renderComments(result.data);
+                }
+            } catch (error) {
+                console.error('加载评论失败:', error);
+            }
+        }
+
+        // 渲染评论
+        function renderComments(comments) {
+            const container = document.getElementById('commentList');
+            container.innerHTML = comments.map(comment => `
+                <div class="card mb-3">
+                    <div class="card-body">
+                        <h6>${comment.nickname}</h6>
+                        <p>${comment.content}</p>
+                        <small class="text-muted">${formatDate(comment.createTime)}</small>
+                        <button class="btn btn-sm btn-link" onclick="replyComment(${comment.id})">回复</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // 提交评论
+        document.getElementById('submitComment').addEventListener('click', async () => {
+            const nickname = document.getElementById('commentNickname').value;
+            const email = document.getElementById('commentEmail').value;
+            const content = document.getElementById('commentContent').value;
+            
+            if (!nickname || !content) {
+                alert('请填写昵称和评论内容');
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/comments', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        articleId: articleId,
+                        nickname: nickname,
+                        email: email,
+                        content: content
+                    })
+                });
+                const result = await response.json();
+                if (result.code === 200) {
+                    alert('评论提交成功，等待审核');
+                    document.getElementById('commentNickname').value = '';
+                    document.getElementById('commentEmail').value = '';
+                    document.getElementById('commentContent').value = '';
+                } else {
+                    alert(result.message);
+                }
+            } catch (error) {
+                console.error('提交评论失败:', error);
+            }
+        });
+
+        // 点赞
+        document.getElementById('likeBtn').addEventListener('click', async () => {
+            try {
+                const response = await fetch(`/api/article/${articleId}/like`, {method: 'POST'});
+                const result = await response.json();
+                if (result.code === 200) {
+                    const count = parseInt(document.getElementById('likeCount').textContent) + 1;
+                    document.getElementById('likeCount').textContent = count;
+                }
+            } catch (error) {
+                console.error('点赞失败:', error);
+            }
+        });
+
+        // 格式化日期
+        function formatDate(dateStr) {
+            if (!dateStr) return '';
+            const date = new Date(dateStr);
+            return date.toLocaleString('zh-CN');
+        }
+
+        // 页面加载时初始化
+        document.addEventListener('DOMContentLoaded', () => {
+            loadArticle();
+        });
+    </script>
+</body>
+</html>
+

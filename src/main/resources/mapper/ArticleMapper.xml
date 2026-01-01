@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.oneblog.mapper.ArticleMapper">
+
+    <select id="selectHotArticles" resultType="com.oneblog.entity.Article">
+        SELECT * FROM article
+        WHERE status = 1 AND deleted = 0
+        ORDER BY views DESC, publish_time DESC
+        LIMIT #{limit}
+    </select>
+
+    <select id="selectByCategory" resultType="com.oneblog.entity.Article">
+        SELECT * FROM article
+        WHERE category_id = #{categoryId} AND status = 1 AND deleted = 0
+        ORDER BY publish_time DESC
+    </select>
+
+    <select id="selectByTag" resultType="com.oneblog.entity.Article">
+        SELECT * FROM article
+        WHERE FIND_IN_SET(#{tagName}, tags) AND status = 1 AND deleted = 0
+        ORDER BY publish_time DESC
+    </select>
+
+    <select id="searchArticles" resultType="com.oneblog.entity.Article">
+        SELECT * FROM article
+        WHERE (title LIKE CONCAT('%', #{keyword}, '%') OR content LIKE CONCAT('%', #{keyword}, '%'))
+        AND status = 1 AND deleted = 0
+        ORDER BY publish_time DESC
+    </select>
+
+    <select id="selectRecommendArticles" resultType="com.oneblog.entity.Article">
+        SELECT * FROM article
+        WHERE id != #{articleId}
+        AND status = 1 AND deleted = 0
+        AND (
+            <foreach collection="tags.split(',')" item="tag" separator=" OR ">
+                FIND_IN_SET(#{tag}, tags)
+            </foreach>
+        )
+        ORDER BY publish_time DESC
+        LIMIT #{limit}
+    </select>
+
+</mapper>
+
